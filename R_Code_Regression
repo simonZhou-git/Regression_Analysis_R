@@ -1,0 +1,102 @@
+```{r}
+library(ElemStatLearn)
+library(class)
+dim(zip.train)
+dim(zip.test)
+train <- zip.train[, 2:257] 
+test <- zip.test[, 2:257]
+label <- zip.train[, 1]
+validation <- zip.test[, 1]
+k_fold <- 10
+trainDF <- as.data.frame(zip.train) # Change zip.train to a dataframe from matrix
+
+infold <- sample(rep(1:k_fold, length.out=length(trainDF))) #create 10 folds for cross validation
+
+
+all_ks <- c(1, 2, 3, 4, 5, 10, 15, 20, 25, 40, 50)
+errorMatrix <- matrix(NA, length(all_ks), 10) # Creat a empty error matrix
+
+for (k in 1:k_fold){ #Loop through all 10 folds
+  for (i in 1:length(all_ks)){ # Loop through all k values
+    knn.fit <- knn(train = trainDF[infold != k,-1], test = trainDF[infold == k, -1], trainDF[infold != k, 1], k = all_ks[i]) #Use one of the folds as test data and other nine folds as train data
+    errorMatrix[i,k] <- mean(knn.fit != trainDF[infold == k,1]) #Fill out error matrix
+  }
+}
+
+
+plot(rep(all_ks, k_fold), as.vector(errorMatrix), pch = 19, cex = 0.5, xlab = "k", ylab = "Missclassification error") #Plot the result
+points(all_ks, apply(errorMatrix, 1, mean), col = "red", pch = 19, type = "l", lwd = 3)
+
+
+all_ks[which.min(apply(errorMatrix, 1, mean))] #Find minimum error for all k values
+
+k_error <- apply(errorMatrix, 1, mean) #Find the mean value for each k
+for (i in 1:length(k_error)){
+  cat('\nAverage cross-validation error for k = ', all_ks[i], ' is ', k_error[i]) #Print result
+}
+
+best_k <- 1 
+knn.fit <- knn(train = train, test = test, label, k = best_k) # Fit a model for k = 1
+score <- mean(knn.fit == validation) # Accuracy score
+misscore <- mean(knn.fit != validation) # Misclassification score
+cat('The score is: ', score)
+cat('\nThe misclassification error is: ', misscore)
+confusion_matrix <- table(knn.fit, validation) # Confusion matrix 
+cat('\nThe confusion matrix for k=1: \n')
+confusion_matrix
+
+allks <- c(1,2,3,4,5,10,15,20,25,40,50)
+for (i in 1:length(allks)){ #Fit the model for all k values
+  knn.fit <- knn(train = train, test = test, label, k = allks[i])
+  cat('\nk value is: ', allks[i])
+  summary(knn.fit)
+  score <- mean(knn.fit == validation)
+  misclassification_error <- mean(knn.fit != validation)
+  confusion_matrix <- table(knn.fit, validation)
+  cat('\nscore for this model is: ', score)
+  cat('\nMisclassification error is: ', misclassification_error)
+  cat('\nconfusion matrix: \n')
+  print(confusion_matrix)
+
+}
+
+
+library(alr4)
+data <- ais
+#head(data)
+attach(data)
+y <- data$Bfat
+fit1 <- lm(y ~ data$Sex+data$Ht+data$Wt+data$LBM+data$RCC+data$WCC+data$Hc+data$Hg+data$Ferr+data$BMI+data$SSF, data = data) # Fit a linear regression model with 11 covariates as indicates on assignment
+summary(fit1)
+
+
+
+step(fit1, direction = 'both', k = log(n)) #Use BIC score criteria for stepwise selection
+
+library(leaps)
+new_df <- data[,c(1:12)] #Define a new data frame that only contains those 11 covariates and response
+RSSleaps <- regsubsets(as.matrix(new_df[,-12]), new_df[,12], nvmax = 11) # Use best subset selection
+summary(RSSleaps, matrix=T)
+regsumm<-summary(RSSleaps, matrix = T)
+
+names(regsumm)
+regsumm$cp
+which.min(regsumm$cp) #Find the minimum cp score and correspond model
+plot(RSSleaps,scale='Cp')
+
+### Visualize three scores
+msize <- apply(regsumm$which, 1, sum)
+inrange <- function(x){
+  (x - min(x)) / (max(x) - min(x))
+}
+Cp <- inrange(regsumm$cp)
+Bic <- inrange(regsumm$bic)
+Aic <- n*log((regsumm$rss)/n) + 2*msize
+Aic <- inrange(Aic)
+
+plot(range(msize), c(0, 1.1), type="n", 
+     xlab="Model Size (with Intercept)", ylab="Model Selection Criteria")
+points(msize, Cp, col="red", type="b")
+points(msize, Aic, col="blue", type="b")
+points(msize, Bic, col="black", type="b")
+legend("topright", lty=rep(1,3), col=c("red", "blue", "black"), legend=c("Cp", "AIC", "BIC"))
