@@ -1,0 +1,205 @@
+---
+title: "R Analysis"
+author: "Simon Zhou"
+date: "2020/1/17"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+library(ElemStatLearn)
+library(class)
+dim(zip.train)
+dim(zip.test)
+```
+
+## Question 1:
+
+### 1a):
+
+```{r}
+### Rename & Basic operations
+train <- zip.train[, 2:257] 
+test <- zip.test[, 2:257]
+label <- zip.train[, 1]
+validation <- zip.test[, 1]
+```
+
+
+
+```{r}
+
+k_fold <- 10
+trainDF <- as.data.frame(zip.train) # Change zip.train to a dataframe from matrix
+
+infold <- sample(rep(1:k_fold, length.out=length(trainDF))) #create 10 folds for cross validation
+
+
+all_ks <- c(1, 2, 3, 4, 5, 10, 15, 20, 25, 40, 50)
+errorMatrix <- matrix(NA, length(all_ks), 10) # Creat a empty error matrix
+
+for (k in 1:k_fold){ #Loop through all 10 folds
+  for (i in 1:length(all_ks)){ # Loop through all k values
+    knn.fit <- knn(train = trainDF[infold != k,-1], test = trainDF[infold == k, -1], trainDF[infold != k, 1], k = all_ks[i]) #Use one of the folds as test data and other nine folds as train data
+    errorMatrix[i,k] <- mean(knn.fit != trainDF[infold == k,1]) #Fill out error matrix
+  }
+}
+
+
+plot(rep(all_ks, k_fold), as.vector(errorMatrix), pch = 19, cex = 0.5, xlab = "k", ylab = "Missclassification error") #Plot the result
+points(all_ks, apply(errorMatrix, 1, mean), col = "red", pch = 19, type = "l", lwd = 3)
+
+
+all_ks[which.min(apply(errorMatrix, 1, mean))] #Find minimum error for all k values
+```
+
+Average 10-fold cross validation error for all k in (1, 2, 3, 4, 5, 10, 15, 20, 25, 40, 50):
+
+```{r}
+k_error <- apply(errorMatrix, 1, mean) #Find the mean value for each k
+for (i in 1:length(k_error)){
+  cat('\nAverage cross-validation error for k = ', all_ks[i], ' is ', k_error[i]) #Print result
+}
+```
+
+Based on avergae cross validation error, the smallest value is when k = 1. Therefore, choose k = 1 as the best k value.
+
+### 1b):
+
+```{r}
+best_k <- 1 
+knn.fit <- knn(train = train, test = test, label, k = best_k) # Fit a model for k = 1
+score <- mean(knn.fit == validation) # Accuracy score
+misscore <- mean(knn.fit != validation) # Misclassification score
+cat('The score is: ', score)
+cat('\nThe misclassification error is: ', misscore)
+confusion_matrix <- table(knn.fit, validation) # Confusion matrix 
+cat('\nThe confusion matrix for k=1: \n')
+confusion_matrix
+```
+
+For k = 1, the misclassification error is 0.0563
+
+
+### 1c):
+
+```{r}
+allks <- c(1,2,3,4,5,10,15,20,25,40,50)
+for (i in 1:length(allks)){ #Fit the model for all k values
+  knn.fit <- knn(train = train, test = test, label, k = allks[i])
+  cat('\nk value is: ', allks[i])
+  summary(knn.fit)
+  score <- mean(knn.fit == validation)
+  misclassification_error <- mean(knn.fit != validation)
+  confusion_matrix <- table(knn.fit, validation)
+  cat('\nscore for this model is: ', score)
+  cat('\nMisclassification error is: ', misclassification_error)
+  cat('\nconfusion matrix: \n')
+  print(confusion_matrix)
+
+}
+```
+
+
+
+## Question 3
+
+### 3a):
+
+```{r}
+library(alr4)
+data <- ais
+#head(data)
+attach(data)
+y <- data$Bfat
+fit1 <- lm(y ~ data$Sex+data$Ht+data$Wt+data$LBM+data$RCC+data$WCC+data$Hc+data$Hg+data$Ferr+data$BMI+data$SSF, data = data) # Fit a linear regression model with 11 covariates as indicates on assignment
+summary(fit1)
+```
+
+
+From the summary, we could see that four covariates have statistically significant in this model, namely Sex, Wt, LBM and SSF. The most significant covariate in this model is LBM because it has larger absolute t-value compare to Wt.
+
+
+```{r}
+n = nrow(data)
+p = 11
+extractAIC(fit1, k = log(n)) #Check BIC score to make sure we start with the right one
+```
+
+### 3b):
+
+```{r}
+step(fit1, direction = 'both', k = log(n)) #Use BIC score criteria for stepwise selection
+```
+
+Based on BIC scores, the smallest score is -98.94, which is the model last model from summary table. Therefore, the model based on BIC score is $y = 4.639 + 1.400*Sex + 0.025*Ht + 0.759*Wt - 0.873*LBM + 0.049*SSF$. Covariates RCC, WCC, Hc, Hg, Ferr, BMI were removed from the full model.
+
+### 3c):
+
+```{r}
+library(leaps)
+new_df <- data[,c(1:12)] #Define a new data frame that only contains those 11 covariates and response
+RSSleaps <- regsubsets(as.matrix(new_df[,-12]), new_df[,12], nvmax = 11) # Use best subset selection
+summary(RSSleaps, matrix=T)
+regsumm<-summary(RSSleaps, matrix = T)
+```
+
+Lists of best model for each model size from 1 to 11:
+
+Model size = 1: $y = \beta_0 + \beta_1*SSF$
+Model size = 2: $y = \beta_0 + \beta_1*Wt + \beta_2*LBM$
+Model size = 3: $y = \beta_0 + \beta_1*Wt + \beta_2*LBM + \beta_3*SSF$
+Model size = 4: $y = \beta_0 + \beta_1*Wt + \beta_2*LBM + \beta_3*SSF + \beta_4*Sex$
+Model size = 5: $y = \beta_0 + \beta_1*Wt + \beta_2*LBM + \beta_3*SSF + \beta_4*Sex + \beta_5*Ht$
+Model size = 6: $y = \beta_0 + \beta_1*Wt + \beta_2*LBM + \beta_3*SSF + \beta_4*Sex + \beta_5*Ht + \beta_6*BMI$
+Model size = 7: $y = \beta_0 + \beta_1*Wt + \beta_2*LBM + \beta_3*SSF + \beta_4*Sex + \beta_5*Ht + \beta_6*BMI + \beta_7*Ferr$
+Model size = 8: $y = \beta_0 + \beta_1*Wt + \beta_2*LBM + \beta_3*SSF + \beta_4*Sex + \beta_5*Ht + \beta_6*BMI + \beta_7*Hc + \beta_8*Hg$
+Model size = 9: $y = \beta_0 + \beta_1*Wt + \beta_2*LBM + \beta_3*SSF + \beta_4*Sex + \beta_5*Ht + \beta_6*BMI + \beta_7*Hc + \beta_8*Hg + \beta_9*Ferr$
+Model size = 10: $y = \beta_0 + \beta_1*Wt + \beta_2*LBM + \beta_3*SSF + \beta_4*Sex + \beta_5*Ht + \beta_6*BMI + \beta_7*Hc + \beta_8*Hg + \beta_9*Ferr + \beta_{10}*RCC$
+Model size = 11: $y = \beta_0 + \beta_1*Wt + \beta_2*LBM + \beta_3*SSF + \beta_4*Sex + \beta_5*Ht + \beta_6*BMI + \beta_7*Hc + \beta_8*Hg + \beta_9*Ferr + \beta_{10}*RCC + \beta_{11}*WCC$
+
+### 3d):
+
+```{r}
+names(regsumm)
+regsumm$cp
+which.min(regsumm$cp) #Find the minimum cp score and correspond model
+plot(RSSleaps,scale='Cp')
+
+```
+
+
+```{r}
+### Visualize three scores
+msize <- apply(regsumm$which, 1, sum)
+inrange <- function(x){
+  (x - min(x)) / (max(x) - min(x))
+}
+Cp <- inrange(regsumm$cp)
+Bic <- inrange(regsumm$bic)
+Aic <- n*log((regsumm$rss)/n) + 2*msize
+Aic <- inrange(Aic)
+
+plot(range(msize), c(0, 1.1), type="n", 
+     xlab="Model Size (with Intercept)", ylab="Model Selection Criteria")
+points(msize, Cp, col="red", type="b")
+points(msize, Aic, col="blue", type="b")
+points(msize, Bic, col="black", type="b")
+legend("topright", lty=rep(1,3), col=c("red", "blue", "black"), legend=c("Cp", "AIC", "BIC"))
+```
+
+Based on the two graphs above, we see that cp score is minimized when there is 5 covariates (without intercept) in the model.
+Therefore, covariates in the final model are Sex, Ht, Wt, LBM and SSF.
+
+```{r}
+finalMOdel <- lm(y ~ Sex+Ht+Wt+LBM+SSF, data = data) # Fit the final model
+summary(finalMOdel)
+```
+
+Mathematical form for final model: $y = 4.639 + 1.400*Sex + 0.025*Ht + 0.759*Wt - 0.873*LBM + 0.049*SSF$
+
