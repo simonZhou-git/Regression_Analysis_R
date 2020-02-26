@@ -1,3 +1,3 @@
 # Regression_Analysis_R
 
-Simple Analysis of different algorithms in R
+Analysis of different algorithms (KNN and Linear Regression) in R
